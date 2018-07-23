@@ -1,10 +1,10 @@
 import React, { Component } from 'react';
-import {Grid, Row, FormGroup} from 'react-bootstrap';
-// import './App.css';
-import list from './List.js';
-import './styles/styles.css';
-import {PATH_BASE, PATH_SEARCH, PARAM_SEARCH, DEFAULT_QUERY,DEFAULT_PAGE, PARAM_PAGE , DEFAULT_HPP ,PARAM_HPP} from './constants/index';
-
+import {Grid, Row} from 'react-bootstrap';
+import '../styles/styles.css';
+import {PATH_BASE, PATH_SEARCH, PARAM_SEARCH, DEFAULT_QUERY,DEFAULT_PAGE, PARAM_PAGE , DEFAULT_HPP ,PARAM_HPP} from '../constants/index';
+import Table from './Table';
+import {Loading, Button} from './Button';
+import Search from './Search';
 
 
 const url = `${PATH_BASE}${PATH_SEARCH}?${PARAM_SEARCH}${DEFAULT_QUERY}&${PARAM_PAGE}&${PARAM_HPP}${DEFAULT_HPP}`;
@@ -14,12 +14,38 @@ console.log(url);
 
 
 // filter the results by search
-function isSearched(searchValue){
-    return function (item) {
-        return !searchValue || item.title.toLowerCase().includes(searchValue.toLowerCase());
+// function isSearched(searchValue){
+//     return function (item) {
+//         return !searchValue || item.title.toLowerCase().includes(searchValue.toLowerCase());
+//
+//     }
+// }
 
+const withLoading = (Component) => ({ isLoading, ...rest}) =>
+    isLoading ? <Loading/> : <Component {...rest}/>
+
+const updateTopStories = (hits, page) =>
+    prevState => {
+        const {results}= prevState;
+
+        const oldHits = results && results.searchKey ? results.searchKey.hits : [];
+        // console.log(results.searchKey);
+        console.log(" oldhits", oldHits);
+        const updatedHits = [...hits, ...oldHits];
+        console.log(updatedHits);
+
+        return {
+            results: {
+                ...results,
+                searchKey: {
+                    hits: updatedHits,
+                    page
+                },
+                isLoading: false
+
+            }
+        }
     }
-}
 
 
 class App extends Component {
@@ -29,7 +55,10 @@ class App extends Component {
             results: {},
             searchKey: '',
             // step1: used to store each result. we assign each result a key
-            searchValue: DEFAULT_QUERY
+            searchValue: DEFAULT_QUERY,
+            isLoading: false,
+            sortKey: 'NONE',
+            isSortReverse: false
         }
         console.log("results from state", this.state.results);
         this.removeItem = this.removeItem.bind(this);
@@ -39,32 +68,17 @@ class App extends Component {
         this.onSubmit = this.onSubmit.bind(this);
     }
 
+
     setTopStories(result){
         console.log("u are in setTop");
         const {hits, page} = result;
-        const {results, searchKey}= this.state;
-        console.log("results", results);
+
         // this means if page is 0 then onlcick is not clicked and there isn't any older data
         // const oldHits = page !==0 ? this.state.result.hits : [];
         // step3: redefine old hits
-        const oldHits = results && results.searchKey ? results.searchKey.hits : [];
-        // console.log(results.searchKey);
-        console.log(" oldhits", oldHits);
-        const updatedHits = [...hits, ...oldHits];
-        console.log(updatedHits);
-
-        this.setState({
-            results: {
-                ...results,
-                searchKey: {
-                    hits: updatedHits,
-                    page
-                }
-
-            }
-        });
-        console.log("results", results);
+        this.setState(updateTopStories(hits, page) );
     }
+
 
     checkTopStories(searchValue){
         return !this.state.results.searchValue;
@@ -73,6 +87,9 @@ class App extends Component {
 //fetch data i.e stories using fetch()
     fetchTopStories(searchValue, page)
     {
+        this.setState({
+            isLoading: true
+        })
         console.log("u are in fecth top");
         fetch(`${PATH_BASE}${PATH_SEARCH}?${PARAM_SEARCH}${searchValue}
         &${PARAM_PAGE}${page}&${PARAM_HPP}${DEFAULT_HPP}`)
@@ -86,7 +103,7 @@ class App extends Component {
         //step2: set searchkey before each search request is sent
         const {searchValue} = this.state;
         this.setState({
-            searchKey: searchValue
+            searchKey: searchValue,
         });
         this.fetchTopStories(searchValue, DEFAULT_PAGE);
     }
@@ -115,7 +132,7 @@ class App extends Component {
 
 
     removeItem(id){
-        const {results, searchKey} = this.state;
+        const {results} = this.state;
         const{hits,page}= results.searchKey;
         console.log("Remove Item");
         const isNotId = item => item.objectID !==id;
@@ -136,7 +153,7 @@ class App extends Component {
 
     render() {
         // console.log(this);
-        const {results, searchValue, searchKey} = this.state;
+        const {results, searchValue, isLoading} = this.state;
         console.log("results",results);
         const page = (results && results.searchKey && results.searchKey.page ) || 0;
         console.log("page",page);
@@ -158,11 +175,12 @@ class App extends Component {
                 <Grid>
                     <Row>
                         {/*if the result has some data then  show the table else null*/}
-                        <Table result={list} searchValue={searchValue} removeItem={this.removeItem}/>
+                        <Table result={list} removeItem={this.removeItem}/>
 
 
                         <div className="text-center alert">
-                            <Button className="btn btn-success" onClick={() => this.fetchTopStories(searchValue, page+1)}> Load More</Button>
+                           <ButtonWithLoading isLoading={isLoading} className="btn btn-success" onClick={() => this.fetchTopStories(searchValue, page+1)}> Load More</ButtonWithLoading>
+
                         </div>
 
 
@@ -175,63 +193,6 @@ class App extends Component {
     }
 }
 
-class Search extends Component{
-    render(){
-        const {onChange, value, children, onSubmit} = this.props;
-        return (
-            <form  onClick={onSubmit}>
-                <FormGroup>
-                    <h1 style={{fontWeight: 'bold'}}>{children}</h1><hr style={{border: '2px solid black', width:'100px'}}/>
-                    <div className="input-group">
-                        <input className="form-control width100 searchForm" type="text"  onChange={onChange} value={value}/>
-                        <span className="input-group-btn">
-                            <Button className="btn btn-primary searchBtn" type="submit">
-                                Search
-                            </Button>
-                        </span>
-                    </div>
-                </FormGroup>
-            </form>
-        );
-    }
-}
+const ButtonWithLoading = withLoading(Button);
 
-class Table extends Component{
-    render(){
-        const {result, searchValue, removeItem} = this.props;
-        // console.log(result.searchKey);
-        const list = (result) ? result : [];
-        console.log("list",list);
-        return(
-            <div className="col-sm-10 col-sm-offset-1">
-                {
-                    // list.filter(isSearched(searchValue)).map( (hit,index) =>
-                    list.map( (hit,index) =>
-                        <div key={index}>
-                            <h3> {hit.title} </h3>
-                            <h4> {hit.author} | Comments: {hit.comments} | Points: {hit.points}
-                                <Button className="btn btn-danger btn-xs" type="text" onClick={() => removeItem(hit.objectID)}>Remove </Button>
-                            </h4>
-                            <hr/>
-                        </div>
-
-                    )
-
-                }
-            </div>
-        );
-    }
-}
-
-class Button extends Component{
-    render(){
-        const {onClick, children, className=''} = this.props;
-        return(
-            <button className={className} onClick={onClick}>
-                {children}
-            </button>
-
-        );
-    }
-}
 export default App;
